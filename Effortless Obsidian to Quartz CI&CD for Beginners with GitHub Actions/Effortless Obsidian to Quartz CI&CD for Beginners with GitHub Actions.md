@@ -2,9 +2,6 @@
 
 
 -  Tying it together
-	- Explain that just like how the Quartz example action automates the build and deployment of the website, we can easily automate pushing updates to the Quartz repo each time we push our central vault repo, and that push will trigger the deploy action on the destination vault
-	- include diagram
-	- Create PAT and add it to the Obsidian vault repo with scope repo write / push (include the token name from the example actions for the tutorial). Restrict to specific repos you know you'll be managing as quartz sites, create a new PAT for each new site, and rotate PAT periodically. If you'll be creating a lot of personal sites, you can scope the PAT to all repos but this is very insecure and not recomended
 	- quote and explain action to add to the obsidian vault, referencing the PAT created and making the destination ./content. Explain the index.md test.
 	- optional section below for excluding files or directories, such as when using your root as the content and you want to exclude private or dotfiles
 - Maintaining multiple sites from the same vault
@@ -177,6 +174,89 @@ After you've created your workflow, commit and push your changes to the Quartz r
 > 
 > If you don't see your workflow at all, check to make sure the workflow file extension is correct, and that you've set your GitHub Pages source to Actions.
 
-After a sucessful deployment, you can preview your repo at
+After a successful deployment, you can preview your website at `https://<YOUR-USERNAME>.github.io/<QUARTZ-REPO-NAME>/`. To start you'll only see the default Quartz placeholder website, which means it's time to connect your repositories and add some content. 
+
+![[default-site.png]]
+
+### Setting up a PAT & Secrets Management
+
+Before we can set up a workflow connecting our two repositories, we need to talk about secrets management and Personal Access Tokens (PATs). If you're new to managing secrets, you can think of this as a PAT as a "robot password" that allows automated processes to authenticate to GitHub on your behalf. While workflows can be directly granted some permissions for working within the scope of its own repository, they require additional authentication to perform more volatile tasks such as interacting with other repositories. By creating and assigning a PAT, you can grant workflows specific permissions they otherwise wouldn't have - such as committing files from one repo to another, which is what we'll be doing here. 
+
+To create a PAT, you will need to go to your GitHub account settings. In the sidebar, go to Developer settings → Personal access tokens → Tokens (classic) create a new token. Note down what the token is for, set an expiration, and select the `repo` scope.
+
+![[PAT.png]]
+
+> IMPORTANT: Once you generate the token, keep it open in another tab or stored in a *secure place* - you will need it for the next step, and won't be able to view it again once you close the tab.
+
+Next, we need to add the PAT to our Obsidian repository so it will have the permissions necessary to copy notes over to your website repo. In a separate tab open your Obsidian vault repository page, to the settings tab, then in the sidebar go to Secrets and variables → Actions. Click New Repository Secret. Name the secret `QUARTZ_REPO_PAT` and paste the PAT you generated in the previous step. Once you successfully add the secret, you can safely close the other tab. 
+
+![[Repository Secrets.png]]
+
+With the PAT added to your Obsidian vault repository, we can move on to the final piece of your CI/CD pipeline. 
+
+### Push Quartz Content Workflow
+
+In your Obsidian vault repo, create a file named `push-quartz-content.yml` in `.github/workflows/` with the following contents: 
+
+```
+name: Push Content to Quartz Vaults
+
+on: push
+
+jobs:
+  update-quartz-content:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Check if Index.md exists
+      id: check_files
+      uses: andstor/file-existence-action@v3
+      with:
+        files: "./index.md"
+
+    - name: Index exists
+      if: steps.check_files.outputs.files_exists == 'true'
+      run: echo "index.md check passed!"
+
+    - name: Index does not exist
+      if: steps.check_files.outputs.files_exists == 'false'
+      run: |
+        echo "index.md does not exist! Please provide an index.md file - aborting"
+        exit 1
+
+    - name: Push Obsidan Content Folder
+      uses: datalbry/copy_folder_to_another_repo_action@1.0.0
+      env:
+        API_TOKEN_GITHUB: ${{ secrets.QUARTZ_REPO_PAT }}
+      with:
+        source_folder: '<PATH_TO_YOUR_SOURCE_FOLDER>'
+        destination_repo: '<YOUR_USERNAME>/<QUARTZ-REPO-NAME>'
+        destination_folder: 'content'
+        destination_branch: 'main'
+        user_email: '<YOUR_EMAIL>'
+        user_name: '<YOUR_USERNAME>'
+        commit_msg: 'Update Quartz Website Content'
+```
+
+Before we break it down, pay special care to edit these specific lines:
+- `API_TOKEN_GITHUB: ${{ secrets.QUARTZ_REPO_PAT }}` If you named your PAT your repository secrets `QUARTZ_REPO_PAT` this can remain the same. If you gave it a different name, update it here. 
+- `source_folder: '<PATH_TO_YOUR_SOURCE_FOLDER>'` Sets the path to the specific folder in your Obsidian vault repository created `index.md` in to be copied and pushed to the other repo.
+- `destination_repo: '<YOUR_USERNAME>/<QUARTZ-REPO-NAME>'` Should be updated to point at your Quartz repository so the workflow pushes the content to the correct location. 
+- `user_email: '<YOUR_EMAIL>'`, `user_name: '<YOUR_USERNAME>'`, and `commit_msg: 'Update Quartz Website Content'` will set your identity and commit message when the workflow pushes to the destination repo.
+
+The structure is the same as the `deploy.yml` workflow we created earlier. As for what the job steps do:
+- `Checkout` Sets up the virtual Ubuntu environment
+- `Check if Index.md exists` does a quick test to see if `index.md` exists in the content folder's root, and aborting the job if it doesn't exist. This prevents the workflow from pushing content without a valid index and breaking the website at deployment. 
+- `Push Obsidan Content Folder` Then commits the verified (and optionally, filtered - see below) contents and pushes them to the destination Quartz repository, completely overwriting its `./content` folder.
+
+>Optional: You can remove specific files and folders by placing an `rm -rf` step *after* `Checkout` but *before* `Push Obsidian Content Folder`. This is especially useful if you're publishing your vault's root folder and want to filter out dotfiles or private folders:
+```
+- name: Remove .obsidian and .github folders
+  run: rm -rf .obsidian .github
+```
+
+That final `Push Obsidan Content Folder` step is where these workflows finally click together and the CI/CD pipeline is finally complete. When you push your updated Obsidian notes to the Obsidian vault repository it immediately run the `push-quartz-content.yml` workflow, which by finishing with a push to the main branch of your Quartz repository then triggers the `on: push:` condition of the `deploy.yml` workflow, fully automating the integration and deployment process. 
 ## Maintaining Multiple Sites from a Single Vault
 ## Conclusion
