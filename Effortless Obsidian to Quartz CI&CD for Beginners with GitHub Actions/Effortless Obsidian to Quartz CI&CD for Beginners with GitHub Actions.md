@@ -99,11 +99,13 @@ By default, each page of your Quartz site will display the name of the file as i
 
 ![[Example-Vault.png]]
 
-The next step is to create a GitHub repository with the contents of your Obsidian vault. If you have one already, that's great - you won't need to make a new one. This repo can be either public or private, that's entirely up to you. Your website will be hosted in a separate repository and the CI/CD workflow we'll be building will allow you to selectively choose which folders in your vault get published, allowing you to maintain complete control over what is public and what is private. 
-
-
+The next step is to create a GitHub repository with the contents of your Obsidian vault. If you have one already, that's great - you won't need to make a new one. This repo can be either public or private, that's entirely up to you. Your website will be hosted in a separate repository and the CI/CD workflow we'll be building will allow you to selectively choose which folders in your vault get published, allowing you to maintain complete control over what is public and what is private. Once you're done setting up your Obsidian vault repository, you're to create your Quartz repo. 
 
 ## Setting up the Quartz Static Site
+
+Because this tutorial is focused on basic CI/CD principles for beginners, we won't be building a Quartz website from scratch - so no Node.js knowledge or dependency installation required! Instead, go to the [Quartz template repository](https://github.com/metamageia/Quartz-Template) I've provided and create a new repository from this template. Give your website repo an appropriate name and keep all other settings as their defaults. 
+
+![[Create Repo from Template.png]]
 
 ## The CI/CD Workflow
 ## Maintaining Multiple Sites from a Single Vault
