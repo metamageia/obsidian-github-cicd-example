@@ -169,6 +169,14 @@ Everything in this workflow can be left as is. Breaking down what this workflow 
 	- `build` Sets up a virtual Ubuntu environment and runs through the process of installing dependencies, building the Quartz site, and uploading the completed artifact to GitHub Pages.
 	- 'deploy' Waits for `build` to finish by setting `needs: build`, targets GitHub's built-in `github-pages` environment, then deploys the built artifact using the built in `deploy-pages` action.
 
-After you've created your workflow, commit and push your changes to the Quartz repository. 
+After you've created your workflow, commit and push your changes to the Quartz repository, at which point the workflow will execute the build & deploy process. You can view the current status of your workflow(s) in the Actions tab of your GitHub repo.
+
+![[github-actions.png]]
+
+> Note: Here we see the workflow has comleted sucessfully. A yellow icon indicates a workflow in progress. A red `x` icon indicates a failed workflow/error, click on the workflow for more information. 
+> 
+> If you don't see your workflow at all, check to make sure the workflow file extension is correct, and that you've set your GitHub Pages source to Actions.
+
+After a sucessful deployment, you can preview your repo at
 ## Maintaining Multiple Sites from a Single Vault
 ## Conclusion
