@@ -1,23 +1,5 @@
 
-1. Setup Obsidian Repo
-	1. Obsidian Vault and Github Repo - assumes basic obsidian proficiency and existing vault, provide screenshots. Can be private or public. 
-		1. Create a folder in your vault for the site contents 
-		2. include a note tiled "index" to serve as your home page
-2. Create Quartz Website per [the docs](https://quartz.jzhao.xyz/)
-	Method 1:
-	1. Install at least Node v22 and npm v10.9.2
-	2. In the terminal run:
-```
-git clone https://github.com/jackyzha0/quartz.git
-cd quartz
-npm i
-npx quartz create
-```
-Note: Start with the defaults, creating an empty Quartz site. Create the repository on github, then summarize [the instructions](https://quartz.jzhao.xyz/setting-up-your-GitHub-repository) for pushing to the repo explain the basics of setting up [GitHub Pages with actions](https://quartz.jzhao.xyz/hosting#github-pages) including the default action. Explain the basics of how the action automatically builds and deploys on a push 
-	Method 2 using Nix:
-	Add optional nix-flake and instructions
 
-Test deploy and check actions 
 
 -  Tying it together
 	- Explain that just like how the Quartz example action automates the build and deployment of the website, we can easily automate pushing updates to the Quartz repo each time we push our central vault repo, and that push will trigger the deploy action on the destination vault
@@ -61,8 +43,7 @@ Test deploy and check actions
 	- Creating a new Repository from Template
 	- GitHub Pages Setup
 - CI/CD Pipeline
-	- Automating Quartz Site Build & Deployment
-		- Setting Source and Destination paths in both the Test and the Copy stages
+	- Quartz Deploy Workflow
 	- Setting up your PAT and Secrets Management
 	- Automating Quartz Site Content Updates
 - Maintaining Multiple Sites from the same Vault
@@ -105,8 +86,89 @@ The next step is to create a GitHub repository with the contents of your Obsidia
 
 Because this tutorial is focused on basic CI/CD principles for beginners, we won't be building a Quartz website from scratch - so no Node.js knowledge or dependency installation required! Instead, go to the [Quartz template repository](https://github.com/metamageia/Quartz-Template) I've provided and create a new repository from this template. Give your website repo an appropriate name and keep all other settings as their defaults. 
 
+> Note: If you'd prefer to create your Quartz from scratch follow the steps outlined in the official docs starting with the [setup](https://quartz.jzhao.xyz/), [build](https://quartz.jzhao.xyz/build), and the [GitHub repository](https://quartz.jzhao.xyz/setting-up-your-GitHub-repository) then follow along with the next step.
+
 ![[Create Repo from Template.png]]
 
-## The CI/CD Workflow
+Once you've created your website's Quartz repository you'll need to set up GitHub Pages. On your Quartz repo page click on the Settings tab, open the Pages section under Code and Automation, and set the Build and Deployment source to GitHub Actions. 
+
+![[Github-Pages.png]]
+
+Now that we have two separate repositories for your source (Obsidian) and your website (Quartz), it's time to link them together and set up some automation.
+
+## Creating the CI/CD Workflow
+
+GitHub Actions is GitHub's built-in automation platform that allows you to easily trigger many parts software development process, including your CI/CD pipeline, all from right within your repository. This is done by including YAML scripts called Workflows in your repository's `.github/workflows/` directory. Each Workflow consists of one or more Jobs, and each job runs in a virtual environment provided by GitHub executing a sequence of user defined shell commands or reusable "Actions" from the GitHub Marketplace. 
+
+Our CICD pipeline will live in two Workflow scripts, which we will create step by step:
+1. `push-quartz-content.yml` will live in the `.github/workflows/` folder of your Obsidian repository. It will copy the contents of the designated source folder, filter out any unwanted files & folders you define (without affecting your source repository), run a basic test checking for a valid `index.md` file, then push the files to the destination Quartz repo overwriting its `content` folder.
+2. `deploy.yml` will live in the `.github/workflows/` folder of your Quartz repository, and will automatically build and deploy the Quartz website each time a commit is pushed to the `main` branch. 
+
+Here you can start to see the CI/CD pipeline come into view: 
+`Push Obsidian Vault to Repo > Copy Website Content > Filter Files > Check Index.md > Push to Quartz Repo > Build Quartz > Deploy Website`
+
+For this project, we'll start with the deploy workflow in your Quartz vault first and get preview the website. For these steps you can either work in your code editor of choice, or create/edit files directly on the GitHub website. 
+
+### Quartz Deploy Workflow
+
+In your Quartz repo, create a file named `deploy.yml` in `.github/workflows/` with the following contents: 
+```
+name: Deploy Quartz site to GitHub Pages
+ 
+on:
+  push:
+    branches:
+      - main
+ 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+ 
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+ 
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for git info
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Dependencies
+        run: npm ci
+      - name: Build Quartz
+        run: npx quartz build
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+ 
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+```
+
+Everything in this workflow can be left as is. Breaking down what this workflow does piece by piece:
+- `name: Deploy Quartz site to GitHub Pages` Sets a human friendly name for the workflow as it will be displayed in the GitHub UI.
+- `on: push: branches: [ main ]` Defines the trigger for the workflow - in this case, the workflow run each time a commit is pushed to the branch `main`.
+- `permissions:` Sets the specific permissions the workflow has when interacting with the GitHub API or other GitHub features.
+- `concurrency:` Helps to manage overlapping processes and prevents workflows from interfering with each other. By setting `group: "pages"` and `cancel-in-progress: false`, GitHub actions knows to delay subsequent workflows in the `pages` group until after this workflow finishes. The is useful for situations where you push an update to the website before the workflow finishes, guaranteeing that changes occur in order. 
+- `jobs:` Defines two jobs to be run, `build` and `deploy`:
+	- `build` Sets up a virtual Ubuntu environment and runs through the process of installing dependencies, building the Quartz site, and uploading the completed artifact to GitHub Pages.
+	- 'deploy' Waits for `build` to finish by setting `needs: build`, targets GitHub's built-in `github-pages` environment, then deploys the built artifact using the built in `deploy-pages` action.
+
+After you've created your workflow, commit and push your changes to the Quartz repository. 
 ## Maintaining Multiple Sites from a Single Vault
 ## Conclusion
